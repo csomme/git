@@ -18,6 +18,7 @@ enum ref_storage_format {
 	REF_STORAGE_FORMAT_UNKNOWN,
 	REF_STORAGE_FORMAT_FILES,
 	REF_STORAGE_FORMAT_REFTABLE,
+	REF_STORAGE_FORMAT_RUST,
 };
 
 struct repo_path_cache {

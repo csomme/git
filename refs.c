@@ -32,6 +32,7 @@
 #include "commit.h"
 #include "wildmatch.h"
 #include "ident.h"
+#include "refs/refs-dynamic.h"
 
 /*
  * List of all available backends
@@ -39,11 +40,17 @@
 static const struct ref_storage_be *refs_backends[] = {
 	[REF_STORAGE_FORMAT_FILES] = &refs_be_files,
 	[REF_STORAGE_FORMAT_REFTABLE] = &refs_be_reftable,
+	[REF_STORAGE_FORMAT_RUST] = NULL,
 };
 
 static const struct ref_storage_be *find_ref_storage_backend(
 	enum ref_storage_format ref_storage_format)
 {
+	if (!refs_backends[REF_STORAGE_FORMAT_RUST]) {
+		((const struct ref_storage_be **)refs_backends)[REF_STORAGE_FORMAT_RUST] =
+			get_rust_backend();
+	}
+
 	if (ref_storage_format < ARRAY_SIZE(refs_backends))
 		return refs_backends[ref_storage_format];
 	return NULL;
@@ -51,6 +58,11 @@ static const struct ref_storage_be *find_ref_storage_backend(
 
 enum ref_storage_format ref_storage_format_by_name(const char *name)
 {
+	if (!refs_backends[REF_STORAGE_FORMAT_RUST]) {
+		((const struct ref_storage_be **)refs_backends)[REF_STORAGE_FORMAT_RUST] =
+			get_rust_backend();
+	}
+
 	for (unsigned int i = 0; i < ARRAY_SIZE(refs_backends); i++)
 		if (refs_backends[i] && !strcmp(refs_backends[i]->name, name))
 			return i;

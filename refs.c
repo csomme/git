@@ -34,38 +34,87 @@
 #include "ident.h"
 #include "refs/refs-dynamic.h"
 
+/* Static list of built-in backends */
+static const struct ref_storage_be *builtin_backends[] = {
+    [REF_STORAGE_FORMAT_FILES] = &refs_be_files,
+    [REF_STORAGE_FORMAT_REFTABLE] = &refs_be_reftable,
+};
+
+/* List of dynamically registered backends */
+#define MAX_DYNAMIC_BACKENDS 16
+static const struct ref_storage_be *dynamic_backends[MAX_DYNAMIC_BACKENDS];
+static enum ref_storage_format dynamic_backend_formats[MAX_DYNAMIC_BACKENDS];
+static int dynamic_backends_count = 0;
+
+/* Next available format enum value for dynamic backends */
+#define DYNAMIC_FORMAT_START 100
+static enum ref_storage_format next_format_value = DYNAMIC_FORMAT_START;
+
+/* Register a backend with a specific format */
+enum ref_storage_format refs_register_backend(const char *name, void *backend_vtable)
+{
+    if (!name || !backend_vtable || dynamic_backends_count >= MAX_DYNAMIC_BACKENDS)
+        return REF_STORAGE_FORMAT_UNKNOWN;
+
+    /* Cast to internal type - caller doesn't need to know the structure */
+    const struct ref_storage_be *backend = (const struct ref_storage_be *)backend_vtable;
+
+    /* Validate the backend has required functions */
+    if (!backend->init || !backend->release)
+        return REF_STORAGE_FORMAT_UNKNOWN;
+
+    /* Check for duplicates by name */
+    for (int i = 0; i < dynamic_backends_count; i++) {
+        if (strcmp(dynamic_backends[i]->name, name) == 0)
+            return dynamic_backend_formats[i];
+    }
+
+    /* Register the backend */
+    dynamic_backends[dynamic_backends_count] = backend;
+    dynamic_backend_formats[dynamic_backends_count] = next_format_value;
+    dynamic_backends_count++;
+
+    return next_format_value++;
+}
+
+
 /*
- * List of all available backends
+ * List of all available built-in backends
  */
 static const struct ref_storage_be *refs_backends[] = {
 	[REF_STORAGE_FORMAT_FILES] = &refs_be_files,
 	[REF_STORAGE_FORMAT_REFTABLE] = &refs_be_reftable,
-	[REF_STORAGE_FORMAT_RUST] = NULL,
 };
 
 static const struct ref_storage_be *find_ref_storage_backend(
-	enum ref_storage_format ref_storage_format)
+    enum ref_storage_format format)
 {
-	if (!refs_backends[REF_STORAGE_FORMAT_RUST]) {
-		((const struct ref_storage_be **)refs_backends)[REF_STORAGE_FORMAT_RUST] =
-			get_rust_backend();
-	}
+    /* Check built-in backends */
+    if (format < ARRAY_SIZE(builtin_backends) && builtin_backends[format])
+        return builtin_backends[format];
 
-	if (ref_storage_format < ARRAY_SIZE(refs_backends))
-		return refs_backends[ref_storage_format];
-	return NULL;
+    /* Check dynamic backends */
+    for (int i = 0; i < dynamic_backends_count; i++) {
+        if (dynamic_backend_formats[i] == format)
+            return dynamic_backends[i];
+    }
+
+    return NULL;
 }
 
 enum ref_storage_format ref_storage_format_by_name(const char *name)
 {
-	if (!refs_backends[REF_STORAGE_FORMAT_RUST]) {
-		((const struct ref_storage_be **)refs_backends)[REF_STORAGE_FORMAT_RUST] =
-			get_rust_backend();
-	}
-
+	/* Check built-in backends */
 	for (unsigned int i = 0; i < ARRAY_SIZE(refs_backends); i++)
 		if (refs_backends[i] && !strcmp(refs_backends[i]->name, name))
 			return i;
+
+    /* Check plugin backends */
+    for (int i = 0; i < dynamic_backends_count; i++) {
+        if (!strcmp(dynamic_backends[i]->name, name))
+            return dynamic_backend_formats[i];
+    }
+
 	return REF_STORAGE_FORMAT_UNKNOWN;
 }
 

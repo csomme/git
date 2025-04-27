@@ -9,6 +9,7 @@
 #include "setup.h"
 #include "strbuf.h"
 #include "trace2.h"
+#include "refs/refs-dynamic.h"
 
 /*
  * Many parts of Git have subprograms communicate via pipe, expect the
@@ -49,6 +50,8 @@ void init_git(const char **argv)
 
 	setlocale(LC_CTYPE, "");
 	git_setup_gettext();
+
+	load_rust_backends();
 
 	initialize_repository(the_repository);
 

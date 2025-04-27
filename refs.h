@@ -15,6 +15,8 @@ struct worktree;
 
 enum ref_storage_format ref_storage_format_by_name(const char *name);
 const char *ref_storage_format_to_name(enum ref_storage_format ref_storage_format);
+enum ref_storage_format refs_register_backend(const char *name, void *backend_vtable);
+
 
 enum ref_transaction_error {
 	/* Default error code */
